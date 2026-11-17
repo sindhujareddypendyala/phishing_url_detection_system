@@ -1,9 +1,10 @@
+import os
 import sqlite3
 
-DB_NAME = "database/scans.db"
+DB_NAME = "databases/scans.db"
 
 def create_table():
-
+    os.makedirs(os.path.dirname(DB_NAME), exist_ok=True)
     conn = sqlite3.connect(
         DB_NAME
     )
