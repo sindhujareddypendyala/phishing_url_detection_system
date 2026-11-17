@@ -1,281 +1,141 @@
+import os
+import json
 import streamlit as st
 import pandas as pd
-import joblib
-
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import (
-    accuracy_score,
-    precision_score,
-    recall_score,
-    f1_score,
-    confusion_matrix
-)
-
 import plotly.express as px
+import plotly.graph_objects as go
 
-# -------------------------
-# PAGE
-# -------------------------
+def load_metrics_report():
+    metrics_path = "reports/metrics.json"
+    if os.path.exists(metrics_path):
+        try:
+            with open(metrics_path, "r") as f:
+                return json.load(f)
+        except Exception:
+            return None
+    return None
 
 def show_analytics():
-
     st.markdown(
         """
         <div class='main-title'>
-        📊 Analytics Dashboard
+        📊 Threat Analytics & Model Benchmark
         </div>
         """,
         unsafe_allow_html=True
     )
 
+    st.write("Production model performance, group-aware cross-validation, and holdout evaluation.")
     st.write("")
 
-    # -------------------------
-    # LOAD DATA
-    # -------------------------
-
-    try:
-
-        df = pd.read_csv(
-            "data/phishingURL.csv"
-        )
-
-    except Exception as e:
-
-        st.error(
-            f"Dataset Error: {e}"
-        )
-
+    report = load_metrics_report()
+    if report is None:
+        st.warning("Metrics report not found. Run 'python train.py' to generate benchmark reports.")
         return
 
-    # -------------------------
-    # PREPARE DATA
-    # -------------------------
-
-    X = df.drop(
-        ["url", "status"],
-        axis=1
-    )
-
-    y = df["status"]
-
-    X_train, X_test, y_train, y_test = train_test_split(
-
-        X,
-        y,
-
-        test_size=0.2,
-
-        random_state=42,
-
-        stratify=y
-    )
-
-    model = joblib.load(
-        "models/phishing_model.joblib"
-    )
-
-    y_pred = model.predict(X_test)
+    best_name = report.get("best_model", "LightGBM")
+    models_data = report.get("models", {})
+    best_holdout = models_data.get(best_name, {}).get("holdout", {})
+    best_cv = models_data.get(best_name, {}).get("cv_mean", {})
+    best_cv_std = models_data.get(best_name, {}).get("cv_std", {})
+    ds_info = report.get("dataset_info", {})
 
     # -------------------------
-    # METRICS
+    # PRODUCTION MODEL METRICS
     # -------------------------
+    st.subheader(f"🏆 Production Model: {best_name}")
+    st.caption("Evaluated on 2,098 URLs across 1,327 unseen registered domains (zero domain overlap with training).")
 
-    accuracy = accuracy_score(
-        y_test,
-        y_pred
-    )
-
-    precision = precision_score(
-        y_test,
-        y_pred,
-        pos_label="phishing"
-    )
-
-    recall = recall_score(
-        y_test,
-        y_pred,
-        pos_label="phishing"
-    )
-
-    f1 = f1_score(
-        y_test,
-        y_pred,
-        pos_label="phishing"
-    )
-
-    # -------------------------
-    # METRIC CARDS
-    # -------------------------
-
-    col1, col2, col3, col4 = st.columns(4)
-
-    col1.metric(
-        "Accuracy",
-        f"{accuracy*100:.2f}%"
-    )
-
-    col2.metric(
-        "Precision",
-        f"{precision*100:.2f}%"
-    )
-
-    col3.metric(
-        "Recall",
-        f"{recall*100:.2f}%"
-    )
-
-    col4.metric(
-        "F1 Score",
-        f"{f1*100:.2f}%"
-    )
+    col1, col2, col3, col4, col5 = st.columns(5)
+    col1.metric("Holdout Accuracy", f"{best_holdout.get('accuracy', 0)*100:.2f}%")
+    col2.metric("Holdout Recall", f"{best_holdout.get('recall', 0)*100:.2f}%")
+    col3.metric("Holdout Precision", f"{best_holdout.get('precision', 0)*100:.2f}%")
+    col4.metric("Holdout F1 Score", f"{best_holdout.get('f1', 0)*100:.2f}%")
+    col5.metric("Holdout ROC-AUC", f"{best_holdout.get('roc_auc', 0):.4f}")
 
     st.write("")
 
     # -------------------------
-    # DATASET INFO
+    # BENCHMARK COMPARISON TABLE
     # -------------------------
-
-    st.subheader(
-        "📂 Dataset Overview"
+    st.subheader("📋 Grouped Cross-Validation & Holdout Benchmark")
+    st.write(
+        "All models trained and tested on identical registered domain groups using "
+        "5-Fold StratifiedGroupKFold (on Train+Val) and GroupShuffleSplit holdout."
     )
 
-    c1, c2, c3 = st.columns(3)
+    table_rows = []
+    for m_name, m_stats in models_data.items():
+        cv_f1 = f"{m_stats['cv_mean']['f1']*100:.2f}% ± {m_stats['cv_std']['f1']*100:.2f}%"
+        h = m_stats["holdout"]
+        table_rows.append({
+            "Model": m_name,
+            "5-Fold CV F1": cv_f1,
+            "Holdout Accuracy": f"{h['accuracy']*100:.2f}%",
+            "Holdout Precision": f"{h['precision']*100:.2f}%",
+            "Holdout Recall": f"{h['recall']*100:.2f}%",
+            "Holdout F1": f"{h['f1']*100:.2f}%",
+            "Holdout ROC-AUC": f"{h['roc_auc']:.4f}",
+            "Holdout PR-AUC": f"{h['pr_auc']:.4f}",
+            "Holdout TN / FP / FN / TP": f"{h['tn']} / {h['fp']} / {h['fn']} / {h['tp']}"
+        })
 
-    c1.metric(
-        "Total URLs",
-        len(df)
-    )
+    benchmark_df = pd.DataFrame(table_rows)
+    st.dataframe(benchmark_df, use_container_width=True)
 
-    c2.metric(
-        "Features",
-        X.shape[1]
-    )
-
-    c3.metric(
-        "Classes",
-        y.nunique()
-    )
-
-    # -------------------------
-    # CLASS DISTRIBUTION
-    # -------------------------
-
-    st.subheader(
-        "📈 Class Distribution"
-    )
-
-    class_df = (
-        y.value_counts()
-        .reset_index()
-    )
-
-    class_df.columns = [
-        "Class",
-        "Count"
-    ]
-
-    fig = px.pie(
-
-        class_df,
-
-        values="Count",
-
-        names="Class",
-
-        hole=0.4,
-
-        title="Legitimate vs Phishing URLs"
-    )
-
-    st.plotly_chart(
-        fig,
-        use_container_width=True
-    )
+    st.write("")
 
     # -------------------------
     # CONFUSION MATRIX
     # -------------------------
+    col_cm, col_chart = st.columns(2)
 
-    st.subheader(
-        "🎯 Confusion Matrix"
-    )
+    with col_cm:
+        st.subheader("🎯 Holdout Confusion Matrix")
+        tn = best_holdout.get("tn", 0)
+        fp = best_holdout.get("fp", 0)
+        fn = best_holdout.get("fn", 0)
+        tp = best_holdout.get("tp", 0)
 
-    cm = confusion_matrix(
-        y_test,
-        y_pred
-    )
-
-    cm_df = pd.DataFrame(
-        cm,
-        index=["Legitimate", "Phishing"],
-        columns=["Legitimate", "Phishing"]
-    )
-
-    st.dataframe(
-        cm_df,
-        use_container_width=True
-    )
-
-    # -------------------------
-    # FEATURE IMPORTANCE
-    # -------------------------
-
-    if hasattr(
-        model,
-        "feature_importances_"
-    ):
-
-        st.subheader(
-            "🔥 Top 20 Features"
+        cm_data = pd.DataFrame(
+            [[tn, fp], [fn, tp]],
+            index=["Actual Safe (0)", "Actual Phishing (1)"],
+            columns=["Pred Safe (0)", "Pred Phishing (1)"]
         )
+        st.dataframe(cm_data, use_container_width=True)
+        st.info(f"False Positives: {fp} | False Negatives: {fn} (out of {tn+fp+fn+tp} holdout samples)")
 
-        importance_df = pd.DataFrame({
-
-            "Feature":
-            X.columns,
-
-            "Importance":
-            model.feature_importances_
+    with col_chart:
+        st.subheader("📈 CV F1-Score Comparison")
+        chart_data = pd.DataFrame({
+            "Model": list(models_data.keys()),
+            "CV F1 (%)": [m["cv_mean"]["f1"] * 100 for m in models_data.values()],
+            "Holdout F1 (%)": [m["holdout"]["f1"] * 100 for m in models_data.values()]
         })
-
-        importance_df = (
-            importance_df
-            .sort_values(
-                by="Importance",
-                ascending=False
-            )
-            .head(20)
-        )
-
         fig = px.bar(
-
-            importance_df,
-
-            x="Importance",
-
-            y="Feature",
-
-            orientation="h",
-
-            title=
-            "Most Important Features"
+            chart_data,
+            x="Model",
+            y=["CV F1 (%)", "Holdout F1 (%)"],
+            barmode="group",
+            title="Cross-Validation vs Holdout F1-Score"
         )
-
-        st.plotly_chart(
-            fig,
-            use_container_width=True
-        )
+        st.plotly_chart(fig, use_container_width=True)
 
     # -------------------------
-    # DATA PREVIEW
+    # DATASET OVERVIEW
     # -------------------------
+    st.write("")
+    st.subheader("📂 Dataset & Split Overview")
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Raw Rows", f"{ds_info.get('raw_samples', 11430):,}")
+    c2.metric("Clean Unique URLs", f"{ds_info.get('deduplicated_samples', 11256):,}")
+    c3.metric("Registered Domains", f"{ds_info.get('unique_registered_domains', 6634):,}")
+    c4.metric("Holdout URLs (Unseen Domains)", f"{ds_info.get('holdout_test_samples', 2098):,}")
 
-    st.subheader(
-        "📝 Dataset Preview"
-    )
-
-    st.dataframe(
-        df.head(20),
-        use_container_width=True
-    )
+    st.write("")
+    st.subheader("📝 Dataset Sample Preview")
+    try:
+        df = pd.read_csv("data/phishingURL.csv")
+        st.dataframe(df[["url", "status"]].head(15), use_container_width=True)
+    except Exception:
+        pass
