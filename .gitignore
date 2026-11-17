@@ -1,0 +1,26 @@
+# Environments
+venv/
+env/
+ENV/
+.venv/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Distribution & Build
+.dist/
+dist/
+build/
+*.egg-info/
+
+# Databases & Local Logs
+databases/*.db
+database/*.db
+*.log
+
+# Temp & Scratch
+scratch/
+.system_generated/

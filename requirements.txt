@@ -1,0 +1,8 @@
+plotly
+numpy
+pandas
+joblib
+streamlit
+scikit-learn
+matplotlib
+python-whois
