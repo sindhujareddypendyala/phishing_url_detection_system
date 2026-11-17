@@ -91,6 +91,7 @@ def show_bulk_scan():
 
     predictions = []
     confidences = []
+    risk_levels = []
 
     progress = st.progress(0)
 
@@ -102,9 +103,7 @@ def show_bulk_scan():
 
         try:
 
-            prediction, probability, features = (
-            predict_url(url)
-            )
+            prediction, probability, features, risk_level = predict_url(url)
 
             confidence = round(
                 probability * 100,
@@ -120,14 +119,8 @@ def show_bulk_scan():
         except Exception:
 
             pred_text = "Error"
-
             confidence = 0
-
-        except:
-
-            pred_text = "Error"
-
-            confidence = 0
+            risk_level = "Unknown"
 
         predictions.append(
             pred_text
@@ -137,6 +130,10 @@ def show_bulk_scan():
             round(
                 confidence
             )
+        )
+
+        risk_levels.append(
+            risk_level
         )
 
         progress.progress(
@@ -156,8 +153,12 @@ def show_bulk_scan():
         predictions
     )
 
-    result_df["Confidence"] = (
+    result_df["Confidence (%)"] = (
         confidences
+    )
+
+    result_df["Risk Level"] = (
+        risk_levels
     )
 
     safe_count = (

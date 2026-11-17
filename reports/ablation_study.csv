@@ -1,0 +1,5 @@
+Configuration,CV Accuracy,CV Precision,CV Recall,CV F1,CV ROC-AUC
+1. Lexical Only (40 Features),85.21% ± 1.63%,87.50% ± 1.88%,81.94% ± 3.55%,84.58% ± 2.13%,0.9293 ± 0.0107
+2. TF-IDF Only (1000 Char N-grams),85.55% ± 2.35%,85.12% ± 4.14%,85.93% ± 2.43%,85.47% ± 2.71%,0.9358 ± 0.0205
+3. Combined (Lexical + TF-IDF) [No Allowlist],91.08% ± 1.84%,90.37% ± 3.13%,91.83% ± 1.41%,91.06% ± 1.91%,0.9706 ± 0.0106
+4. Combined + TRUSTED_DOMAINS Allowlist,90.21% ± 2.17%,90.61% ± 2.87%,89.99% ± 2.98%,90.23% ± 1.57%,0.9548 ± 0.0325
