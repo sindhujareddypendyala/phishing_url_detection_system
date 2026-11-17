@@ -4,6 +4,7 @@ import plotly.graph_objects as go
 import time
 
 from utils.predictor import predict_url
+from utils.feature_extraction import FEATURE_NAMES
 from utils.dns_check import check_domain
 from utils.ssl_check import check_ssl
 from utils.whois_check import get_domain_age
@@ -204,20 +205,14 @@ f"""
         # Feature Table
         # -------------------------
 
-        st.subheader(
-            "📊 Extracted Features"
-        )
+        st.subheader("📊 Extracted Features")
+
+        names = FEATURE_NAMES if len(features) == len(FEATURE_NAMES) else [f"Feature {i+1}" for i in range(len(features))]
+        formatted_vals = [round(v, 4) if isinstance(v, float) else v for v in features]
 
         feature_df = pd.DataFrame({
-
-            "Feature No":
-            range(
-                1,
-                len(features) + 1
-            ),
-
-            "Value":
-            features
+            "Feature": names,
+            "Extracted Value": formatted_vals
         })
 
         st.dataframe(

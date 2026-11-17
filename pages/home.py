@@ -1,5 +1,31 @@
+import os
+import json
 import streamlit as st
 
+def get_platform_metrics():
+    default_metrics = {
+        "total_urls": "11,256",
+        "accuracy": "88.2%",
+        "precision": "83.5%",
+        "f1_score": "86.9%"
+    }
+    metrics_file = "reports/metrics.json"
+    if os.path.exists(metrics_file):
+        try:
+            with open(metrics_file, "r") as f:
+                data = json.load(f)
+                best = data.get("best_model", "LightGBM")
+                h = data.get("models", {}).get(best, {}).get("holdout", {})
+                ds = data.get("dataset_info", {})
+                return {
+                    "total_urls": f"{ds.get('deduplicated_samples', 11256):,}",
+                    "accuracy": f"{h.get('accuracy', 0.8823)*100:.1f}%",
+                    "precision": f"{h.get('precision', 0.8345)*100:.1f}%",
+                    "f1_score": f"{h.get('f1', 0.8694)*100:.1f}%"
+                }
+        except Exception:
+            pass
+    return default_metrics
 
 def show_home():
 
@@ -39,18 +65,19 @@ def show_home():
     # DASHBOARD METRICS
     # ------------------------
 
+    metrics = get_platform_metrics()
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
         st.markdown(
-            """
+            f"""
             <div class='metric-card'>
                 <div class='metric-title'>
-                    URLs Scanned
+                    Clean URLs
                 </div>
 
                 <div class='metric-value'>
-                    11,430
+                    {metrics['total_urls']}
                 </div>
             </div>
             """,
@@ -59,14 +86,14 @@ def show_home():
 
     with col2:
         st.markdown(
-            """
+            f"""
             <div class='metric-card'>
                 <div class='metric-title'>
-                    Accuracy
+                    Accuracy (Holdout)
                 </div>
 
                 <div class='metric-value'>
-                    97.8%
+                    {metrics['accuracy']}
                 </div>
             </div>
             """,
@@ -75,14 +102,14 @@ def show_home():
 
     with col3:
         st.markdown(
-            """
+            f"""
             <div class='metric-card'>
                 <div class='metric-title'>
                     Precision
                 </div>
 
                 <div class='metric-value'>
-                    96.9%
+                    {metrics['precision']}
                 </div>
             </div>
             """,
@@ -91,14 +118,14 @@ def show_home():
 
     with col4:
         st.markdown(
-            """
+            f"""
             <div class='metric-card'>
                 <div class='metric-title'>
                     F1 Score
                 </div>
 
                 <div class='metric-value'>
-                    97.1%
+                    {metrics['f1_score']}
                 </div>
             </div>
             """,

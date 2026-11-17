@@ -31,8 +31,9 @@ def predict_url(url):
 
     features = extract_features(url)
 
-    prediction = int(model.predict([features])[0])
+    prediction = int(model.predict([url])[0])
 
-    probability = float(model.predict_proba([features])[0][1])
+    probability = float(model.predict_proba([url])[0][1])
 
-    return prediction, probability, features
+    return prediction, probability, features
+
