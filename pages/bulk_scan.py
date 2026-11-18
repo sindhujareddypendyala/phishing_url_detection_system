@@ -1,270 +1,167 @@
-import streamlit as st
+"""
+Bulk CSV Scanner Page.
+Batch URL threat evaluation with formula-injection-safe export and distribution analytics.
+"""
+
+import io
 import pandas as pd
-import joblib
 import plotly.express as px
-import time
-
+import streamlit as st
 from utils.predictor import predict_url
+from utils.ui import (
+    apply_custom_css,
+    get_threshold_config,
+    get_verdict_info,
+    sanitize_csv_cell,
+)
 
-# --------------------------
-# PAGE
-# --------------------------
+MAX_ROWS = 500
 
-def show_bulk_scan():
 
-    st.markdown(
-        """
-        <div class='main-title'>
-        📂 Bulk CSV Scanner
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
+def show_bulk_scan_page():
+    apply_custom_css()
+    cfg = get_threshold_config()
+    default_th = float(cfg.get("default_threshold", 0.52))
+    high_rec_th = float(cfg.get("high_recall_threshold", 0.32))
 
-    st.write(
-        "Upload a CSV file containing URLs."
-    )
+    st.title("📂 Bulk URL Scanner")
+    st.caption(f"Batch-process up to {MAX_ROWS} URLs from a CSV file with unified lexical threat analysis.")
 
-    uploaded_file = st.file_uploader(
-        "Choose CSV File",
-        type=["csv"]
-    )
-
-    if uploaded_file is None:
-        return
-
-    try:
-
-        df = pd.read_csv(
-            uploaded_file
-        )
-
-    except Exception as e:
-
-        st.error(
-            f"Error reading CSV: {e}"
-        )
-
-        return
-
-    # --------------------------
-    # VALIDATION
-    # --------------------------
-
-    if "url" not in df.columns:
-
-        st.error(
-            "CSV must contain a column named 'url'"
-        )
-
-        st.info(
-            """
-            Example:
-
-            url
-            https://google.com
-            https://facebook.com
-            """
-        )
-
-        return
-
-    st.success(
-        f"{len(df)} URLs Loaded"
-    )
-
-    st.dataframe(
-        df.head(),
-        use_container_width=True
-    )
-
-    scan_button = st.button(
-        "🚀 Start Bulk Scan"
-    )
-
-    if not scan_button:
-        return
-
-    # --------------------------
-    # SCAN
-    # --------------------------
-
-    predictions = []
-    confidences = []
-    risk_levels = []
-
-    progress = st.progress(0)
-
-    total = len(df)
-
-    for index, row in df.iterrows():
-
-        url = str(row["url"])
-
-        try:
-
-            prediction, probability, features, risk_level = predict_url(url)
-
-            confidence = round(
-                probability * 100,
-                2
-            )
-
-            pred_text = (
-                "Phishing"
-                if prediction == 1
-                else "Safe"
-            )
-
-        except Exception:
-
-            pred_text = "Error"
-            confidence = 0
-            risk_level = "Unknown"
-
-        predictions.append(
-            pred_text
-        )
-
-        confidences.append(
-            round(
-                confidence
-            )
-        )
-
-        risk_levels.append(
-            risk_level
-        )
-
-        progress.progress(
-            int(
-                ((index + 1) / total)
-                * 100
-            )
-        )
-
-    # --------------------------
-    # RESULTS
-    # --------------------------
-
-    result_df = df.copy()
-
-    result_df["Prediction"] = (
-        predictions
-    )
-
-    result_df["Confidence (%)"] = (
-        confidences
-    )
-
-    result_df["Risk Level"] = (
-        risk_levels
-    )
-
-    safe_count = (
-        result_df[
-            result_df["Prediction"]
-            == "Safe"
-        ]
-        .shape[0]
-    )
-
-    phishing_count = (
-        result_df[
-            result_df["Prediction"]
-            == "Phishing"
-        ]
-        .shape[0]
-    )
-
-    # --------------------------
-    # SUMMARY CARDS
-    # --------------------------
-
-    st.write("")
-    st.subheader(
-        "📊 Scan Summary"
-    )
-
-    col1, col2, col3 = st.columns(3)
-
-    col1.metric(
-        "Total URLs",
-        len(result_df)
-    )
-
-    col2.metric(
-        "Safe URLs",
-        safe_count
-    )
-
-    col3.metric(
-        "Phishing URLs",
-        phishing_count
-    )
-
-    # --------------------------
-    # CHART
-    # --------------------------
-
-    chart_df = pd.DataFrame({
-
-        "Category": [
-            "Safe",
-            "Phishing"
-        ],
-
-        "Count": [
-            safe_count,
-            phishing_count
-        ]
-    })
-
-    fig = px.pie(
-        chart_df,
-        values="Count",
-        names="Category",
-        title="Threat Distribution"
-    )
-
-    st.plotly_chart(
-        fig,
-        use_container_width=True
-    )
-
-    # --------------------------
-    # RESULTS TABLE
-    # --------------------------
-
-    st.subheader(
-        "📋 Detection Results"
-    )
-
-    st.dataframe(
-        result_df,
-        use_container_width=True
-    )
-
-    # --------------------------
-    # DOWNLOAD
-    # --------------------------
-
-    csv = result_df.to_csv(
-        index=False
-    )
-
+    # Template download
+    sample_df = pd.DataFrame({"url": [
+        "https://www.google.com",
+        "http://paypal.com.account-verify.xyz/login.php",
+        "http://192.168.1.1/admin/login",
+        "https://github.com/security",
+    ]})
     st.download_button(
-
-        label="⬇ Download Results CSV",
-
-        data=csv,
-
-        file_name=
-        "cybershield_results.csv",
-
-        mime="text/csv"
+        "📥 Download Sample CSV Template",
+        sample_df.to_csv(index=False).encode("utf-8"),
+        file_name="sample_urls_template.csv",
+        mime="text/csv",
     )
 
-    st.success(
-        "Bulk Scan Completed Successfully"
-    )
+    uploaded_file = st.file_uploader("Upload CSV File (Requires 'url' column)", type=["csv"])
+
+    if uploaded_file is not None:
+        try:
+            df_in = pd.read_csv(uploaded_file)
+        except Exception as e:
+            st.error(f"❌ Failed to parse CSV file: {e}")
+            return
+
+        col_url = next((c for c in df_in.columns if c.strip().lower() == "url"), None)
+        if col_url is None:
+            st.error("❌ CSV must contain a column named 'url'. Found columns: " + ", ".join(df_in.columns))
+            return
+
+        raw_urls = df_in[col_url].dropna().astype(str).str.strip()
+        raw_urls = [u for u in raw_urls if u]
+
+        if not raw_urls:
+            st.warning("⚠️ No valid URL entries found in the uploaded file.")
+            return
+
+        if len(raw_urls) > MAX_ROWS:
+            st.warning(f"⚠️ Input contains {len(raw_urls)} URLs. Capping evaluation to first {MAX_ROWS} rows.")
+            raw_urls = raw_urls[:MAX_ROWS]
+
+        st.info(f"Loaded {len(raw_urls)} URLs ready for batch analysis.")
+
+        if st.button("🚀 Process Batch Scan", type="primary"):
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+            results = []
+
+            for i, u in enumerate(raw_urls):
+                try:
+                    pred, prob, _, risk = predict_url(u, threshold=default_th)
+                    verdict = get_verdict_info(prob, low_th=high_rec_th, high_th=default_th)
+                    results.append({
+                        "url": u,
+                        "verdict": verdict["label"],
+                        "threat_score": f"{prob*100:.1f}%",
+                        "risk_level": risk,
+                        "probability": round(prob, 4),
+                        "status_code": pred,
+                    })
+                except Exception:
+                    results.append({
+                        "url": u,
+                        "verdict": "Error",
+                        "threat_score": "0.0%",
+                        "risk_level": "Unknown",
+                        "probability": 0.0,
+                        "status_code": -1,
+                    })
+
+                progress_bar.progress((i + 1) / len(raw_urls))
+                status_text.text(f"Processed {i+1} / {len(raw_urls)} URLs...")
+
+            status_text.empty()
+            progress_bar.empty()
+
+            st.session_state.bulk_results_df = pd.DataFrame(results)
+
+    # Display results if available
+    if "bulk_results_df" in st.session_state and not st.session_state.bulk_results_df.empty:
+        res_df = st.session_state.bulk_results_df
+        total = len(res_df)
+        phish_cnt = int((res_df["verdict"] == "Phishing").sum())
+        susp_cnt = int((res_df["verdict"] == "Suspicious").sum())
+        safe_cnt = int((res_df["verdict"] == "Safe").sum())
+
+        st.subheader("📊 Batch Summary")
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Total Scanned", f"{total:,}")
+        c2.metric("🚨 Phishing Detected", f"{phish_cnt:,} ({(phish_cnt/total)*100:.1f}%)")
+        c3.metric("⚠️ Suspicious URLs", f"{susp_cnt:,} ({(susp_cnt/total)*100:.1f}%)")
+        c4.metric("✅ Safe URLs", f"{safe_cnt:,} ({(safe_cnt/total)*100:.1f}%)")
+
+        # Distribution Chart
+        chart_col, filter_col = st.columns([1, 1])
+        with chart_col:
+            dist_df = pd.DataFrame({
+                "Category": ["Safe", "Suspicious", "Phishing"],
+                "Count": [safe_cnt, susp_cnt, phish_cnt],
+                "Color": ["#10b981", "#f59e0b", "#ef4444"],
+            })
+            fig = px.pie(
+                dist_df,
+                names="Category",
+                values="Count",
+                hole=0.45,
+                color="Category",
+                color_discrete_map={"Safe": "#10b981", "Suspicious": "#f59e0b", "Phishing": "#ef4444"},
+                title="Threat Distribution",
+            )
+            fig.update_layout(height=260, margin=dict(l=10, r=10, t=40, b=10), paper_bgcolor="rgba(0,0,0,0)")
+            st.plotly_chart(fig, width="stretch")
+
+        with filter_col:
+            st.subheader("🔍 Filter & Export")
+            selected_filter = st.multiselect(
+                "Filter by Verdict",
+                options=["Safe", "Suspicious", "Phishing"],
+                default=["Safe", "Suspicious", "Phishing"],
+            )
+
+        filtered_df = res_df[res_df["verdict"].isin(selected_filter)]
+        st.dataframe(filtered_df[["url", "verdict", "risk_level", "threat_score"]], width="stretch", height=280)
+
+        # Formula-injection safe export
+        export_df = filtered_df.copy()
+        export_df["url"] = export_df["url"].apply(sanitize_csv_cell)
+        csv_bytes = export_df.to_csv(index=False).encode("utf-8")
+
+        st.download_button(
+            "📥 Download Filtered Scan Results (CSV)",
+            csv_bytes,
+            file_name="cyber_shield_bulk_results.csv",
+            mime="text/csv",
+            type="primary",
+        )
+
+
+show_bulk_scan_page()
+
