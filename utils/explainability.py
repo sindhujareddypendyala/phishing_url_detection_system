@@ -21,14 +21,18 @@ def get_explainer():
             tfidf_vocab = feat_union.transformer_list[1][1].get_feature_names_out()
             _FEATURE_NAMES_ALL = FEATURE_NAMES + [f"char_ngram_{ng}" for ng in tfidf_vocab]
             
-            # The calibrator holds the base LightGBM estimator(s)
-            calibrator = _PIPELINE.named_steps["calibrator"]
-            if hasattr(calibrator, "calibrated_classifiers_"):
-                base_clf = calibrator.calibrated_classifiers_[0].estimator
-            elif hasattr(calibrator, "estimator"):
-                base_clf = calibrator.estimator
+            if "classifier" in _PIPELINE.named_steps:
+                base_clf = _PIPELINE.named_steps["classifier"]
+            elif "calibrator" in _PIPELINE.named_steps:
+                calibrator = _PIPELINE.named_steps["calibrator"]
+                if hasattr(calibrator, "calibrated_classifiers_"):
+                    base_clf = calibrator.calibrated_classifiers_[0].estimator
+                elif hasattr(calibrator, "estimator"):
+                    base_clf = calibrator.estimator
+                else:
+                    base_clf = calibrator
             else:
-                base_clf = calibrator
+                base_clf = _PIPELINE[-1]
                 
             _EXPLAINER = shap.TreeExplainer(base_clf)
         except Exception:

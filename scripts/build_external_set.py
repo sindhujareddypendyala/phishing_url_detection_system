@@ -10,6 +10,12 @@ the script exits with explicit download instructions.
 
 import os
 import sys
+
+# Ensure repository root is on sys.path
+repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if repo_root not in sys.path:
+    sys.path.insert(0, repo_root)
+
 import pandas as pd
 from urllib.parse import urlparse
 from utils.feature_extraction import normalize_url, extract_registered_domain

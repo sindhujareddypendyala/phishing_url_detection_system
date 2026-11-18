@@ -6,7 +6,7 @@ import streamlit as st
 from utils.dns_check import check_domain
 from utils.explainability import explain_single_url
 from utils.feature_extraction import FEATURE_NAMES
-from utils.predictor import DEFAULT_THRESHOLD, BALANCED_THRESHOLD, predict_url
+from utils.predictor import DEFAULT_THRESHOLD, BALANCED_THRESHOLD, HIGH_RECALL_THRESHOLD, predict_url
 from utils.ssl_check import check_ssl
 from utils.whois_check import get_domain_age
 
@@ -36,15 +36,15 @@ def show_single_scan():
         threshold_choice = st.selectbox(
             "Detection Threshold",
             [
-                f"High-Recall (0.36) - Security Priority",
-                f"Balanced (0.49) - F1 Optimized",
+                f"Default (Balanced F1: {DEFAULT_THRESHOLD:.2f})",
+                f"High-Recall ({HIGH_RECALL_THRESHOLD:.2f}) - OOF Recall 95.1%; Holdout Recall 94.4%",
                 "Custom Threshold"
             ]
         )
-        if "High-Recall" in threshold_choice:
+        if "Default" in threshold_choice:
             active_threshold = DEFAULT_THRESHOLD
-        elif "Balanced" in threshold_choice:
-            active_threshold = BALANCED_THRESHOLD
+        elif "High-Recall" in threshold_choice:
+            active_threshold = HIGH_RECALL_THRESHOLD
         else:
             active_threshold = st.slider("Custom Threshold", 0.05, 0.95, DEFAULT_THRESHOLD, 0.01)
 

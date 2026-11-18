@@ -5,23 +5,24 @@ import streamlit as st
 def get_platform_metrics():
     default_metrics = {
         "total_urls": "11,256",
-        "accuracy": "88.2%",
-        "precision": "83.5%",
-        "f1_score": "86.9%"
+        "accuracy": "88.4%",
+        "precision": "84.0%",
+        "f1_score": "87.0%"
     }
     metrics_file = "reports/metrics.json"
     if os.path.exists(metrics_file):
         try:
-            with open(metrics_file, "r") as f:
+            with open(metrics_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
-                best = data.get("best_model", "LightGBM")
-                h = data.get("models", {}).get(best, {}).get("holdout", {})
-                ds = data.get("dataset_info", {})
+                h = data.get("operating_thresholds", {}).get("default_balanced", {})
+                if not h:
+                    best = data.get("best_model", "LightGBM")
+                    h = data.get("models", {}).get(best, {}).get("holdout", {})
                 return {
-                    "total_urls": f"{ds.get('deduplicated_samples', 11256):,}",
-                    "accuracy": f"{h.get('accuracy', 0.8823)*100:.1f}%",
-                    "precision": f"{h.get('precision', 0.8345)*100:.1f}%",
-                    "f1_score": f"{h.get('f1', 0.8694)*100:.1f}%"
+                    "total_urls": "11,256",
+                    "accuracy": f"{h.get('accuracy', 0.8837)*100:.1f}%",
+                    "precision": f"{h.get('precision', 0.8398)*100:.1f}%",
+                    "f1_score": f"{h.get('f1', 0.8702)*100:.1f}%"
                 }
         except Exception:
             pass
